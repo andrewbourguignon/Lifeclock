@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lifeclock</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --text: #1c1c1e;
+      --past: #d1d1d6;
+      --current: #0a84ff;
+      --future: #e5e5ea;
+      --event: #ff9500;
+      --tooltip-bg: #1c1c1e;
+      --tooltip-text: #f2f2f7;
+      --card-bg: #ffffff;
+      --border-radius: 12px;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    body.dark {
+      --bg: #1c1c1e;
+      --text: #f2f2f7;
+      --past: #2c2c2e;
+      --current: #0a84ff;
+      --future: #3a3a3c;
+      --event: #ffb74d;
+      --tooltip-bg: #f2f2f7;
+      --tooltip-text: #1c1c1e;
+      --card-bg: #2c2c2e;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "San Francisco", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0 auto;
+      padding: 2rem;
+      max-width: 1100px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    #form, #controls, #event-form {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    input, button {
+      padding: 0.6rem 1rem;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button:hover {
+      cursor: pointer;
+      background: var(--current);
+      color: white;
+    }
+
+    .toggle {
+      width: 50px;
+      height: 28px;
+      background: var(--future);
+      border-radius: 14px;
+      position: relative;
+      appearance: none;
+      outline: none;
+    }
+
+    .toggle:checked {
+      background: var(--current);
+    }
+
+    .toggle::before {
+      content: '';
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      transition: transform 0.3s ease;
+    }
+
+    .toggle:checked::before {
+      transform: translateX(22px);
+    }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(10px, 1fr));
+      gap: 3px;
+      padding: 1rem 0;
+      justify-content: center;
+    }
+
+    .week {
+      width: 12px;
+      height: 12px;
+      background-color: var(--future);
+      border-radius: 3px;
+      position: relative;
+      transition: background-color 0.3s, transform 0.1s ease-in-out;
+    }
+
+    .week:hover {
+      transform: scale(1.3);
+    }
+
+    .week:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      top: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--tooltip-bg);
+      color: var(--tooltip-text);
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 6px;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .past { background-color: var(--past); }
+    .current { background-color: var(--current); }
+    .event { border: 2px solid var(--event); }
+
+    #stats {
+      text-align: center;
+      margin-top: 2rem;
+      font-size: 1.1rem;
+    }
+
+    .floating-btn, .export-btn {
+      position: fixed;
+      right: 30px;
+      border: none;
+      border-radius: 50%;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 22px;
+      color: white;
+      background-color: var(--current);
+      box-shadow: var(--shadow);
+      z-index: 100;
+    }
+
+    .floating-btn { bottom: 30px; }
+    .export-btn { bottom: 100px; }
+
+    @media screen and (max-width: 600px) {
+      body { padding: 1rem; }
+      .card { padding: 1rem; }
+      input, button { width: 100%; }
+      #form, #controls, #event-form { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <h1>📆 Lifeclock</h1>
+
+  <div class="card" id="form">
+    <label for="birthdate">🎂 Birthdate:</label>
+    <input type="date" id="birthdate" />
+
+    <label for="lifespan">🎯 Lifespan:</label>
+    <input type="number" id="lifespan" value="90" min="1" max="150" style="width: 70px;" />
+
+    <button onclick="generateGrid()">✨ Generate</button>
+  </div>
+
+  <div class="card" id="controls">
+    <label>🌗 Dark Mode:</label>
+    <input type="checkbox" class="toggle" onchange="toggleDarkMode()" id="darkToggle">
+    <button onclick="clearAllData()">🧹 Clear All</button>
+  </div>
+
+  <div class="card" id="event-form">
+    <input type="text" id="event-name" placeholder="📌 Event name" />
+    <input type="number" id="event-age" placeholder="🎂 Age" style="width: 60px;" />
+    <input type="number" id="event-week" placeholder="📅 Week" style="width: 60px;" />
+    <button onclick="addLifeEvent()">➕ Add Event</button>
+  </div>
+
+  <div id="grid"></div>
+  <div id="stats"></div>
+
+  <button class="floating-btn" onclick="scrollToTop()" title="Scroll to top">
+    <i class="fas fa-arrow-up"></i>
+  </button>
+  <button class="export-btn" onclick="exportToPDF()" title="Export to PDF">
+    <i class="fas fa-file-pdf"></i>
+  </button>
+
+  <script>
+    async function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+      const canvas = await html2canvas(document.body, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      const imgProps = doc.getImageProperties(imgData);
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      doc.save('life-in-weeks.pdf');
+    }
+
+    function scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function generateGrid() {
+      const birthdateInput = document.getElementById('birthdate').value;
+      const lifespanInput = parseInt(document.getElementById('lifespan').value);
+      if (!birthdateInput || isNaN(lifespanInput)) return alert('Please fill in all fields.');
+      localStorage.setItem('birthdate', birthdateInput);
+      localStorage.setItem('lifespan', lifespanInput);
+      renderGrid(new Date(birthdateInput), lifespanInput);
+    }
+
+    function renderGrid(birthdate, lifespanYears) {
+      const now = new Date();
+      const grid = document.getElementById('grid');
+      const stats = document.getElementById('stats');
+      grid.innerHTML = '';
+      stats.innerHTML = '';
+
+      const weeksInLife = lifespanYears * 52;
+      const msPerWeek = 1000 * 60 * 60 * 24 * 7;
+      const weeksLived = Math.floor((now - birthdate) / msPerWeek);
+      const currentAge = Math.floor((now - birthdate) / (1000 * 60 * 60 * 24 * 365.25));
+      const percentage = Math.min((weeksLived / weeksInLife * 100).toFixed(2), 100);
+      const events = JSON.parse(localStorage.getItem('lifeEvents') || '[]');
+
+      for (let i = 0; i < weeksInLife; i++) {
+        const div = document.createElement('div');
+        div.classList.add('week');
+        const year = Math.floor(i / 52);
+        const weekOfYear = (i % 52) + 1;
+        div.setAttribute('data-tooltip', `Week ${weekOfYear} of age ${year}`);
+        if (i < weeksLived) div.classList.add('past');
+        else if (i === weeksLived) div.classList.add('current');
+        const matchingEvent = events.find(e => e.age == year && e.week == weekOfYear);
+        if (matchingEvent) {
+          div.classList.add('event');
+          div.setAttribute('data-tooltip', `${matchingEvent.name} (Week ${weekOfYear} of age ${year})`);
+        }
+        grid.appendChild(div);
+      }
+
+      stats.innerHTML = `
+        <div class="card">
+          <p><strong>🕒 Weeks lived:</strong> ${weeksLived}</p>
+          <p><strong>📆 Weeks remaining:</strong> ${weeksInLife - weeksLived}</p>
+          <p><strong>🎂 Current age:</strong> ${currentAge} years</p>
+          <p><strong>📊 % of life lived:</strong> ${percentage}%</p>
+          <p><strong>🪦 Estimated end date:</strong> ${new Date(birthdate.getFullYear() + lifespanYears, birthdate.getMonth(), birthdate.getDate()).toDateString()}</p>
+          <p><strong>📜 Days since birth:</strong> ${Math.floor((now - birthdate) / (1000 * 60 * 60 * 24))}</p>
+        </div>`;
+    }
+
+    function addLifeEvent() {
+      const name = document.getElementById('event-name').value.trim();
+      const age = parseInt(document.getElementById('event-age').value);
+      const week = parseInt(document.getElementById('event-week').value);
+      if (!name || isNaN(age) || isNaN(week)) return alert('Please enter valid values.');
+      const events = JSON.parse(localStorage.getItem('lifeEvents') || '[]');
+      events.push({ name, age, week });
+      localStorage.setItem('lifeEvents', JSON.stringify(events));
+      generateGrid();
+    }
+
+    function clearAllData() {
+      localStorage.removeItem('birthdate');
+      localStorage.removeItem('lifespan');
+      localStorage.removeItem('lifeEvents');
+      location.reload();
+    }
+
+    function toggleDarkMode() {
+      const isDark = document.body.classList.toggle('dark');
+      localStorage.setItem('darkMode', isDark);
+      document.getElementById('darkToggle').checked = isDark;
+    }
+
+    window.onload = function () {
+      const savedDate = localStorage.getItem('birthdate');
+      const savedLifespan = localStorage.getItem('lifespan');
+      const darkMode = localStorage.getItem('darkMode') === 'true';
+      if (savedDate) document.getElementById('birthdate').value = savedDate;
+      if (savedLifespan) document.getElementById('lifespan').value = savedLifespan;
+      if (savedDate && savedLifespan) renderGrid(new Date(savedDate), parseInt(savedLifespan));
+      if (darkMode) {
+        document.body.classList.add('dark');
+        document.getElementById('darkToggle').checked = true;
+      }
+    };
+  </script>
+</body>
+</html>
